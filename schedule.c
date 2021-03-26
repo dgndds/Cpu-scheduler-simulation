@@ -439,23 +439,23 @@ int main(int argc, char *argv[]){
 			return -1;
 		}
 		
-		if( atoi(argv[1]) == 0){
+		if( atoi(argv[1]) <= 0){
 			printf("Thread count must be integer and greater than zero\n");
 			return -1;
 		}
 		
-		if( atoi(argv[2]) == 0){
+		if( atoi(argv[2]) <= 0){
 			printf("Burst count must be integer and greater than zero\n");
 			return -1;
 		}
 		
-		if( atoi(argv[4]) == 0){
+		if( atoi(argv[4]) <= 0){
 			printf("avgB value must be integer and greater than zero\n");
 			return -1;
 		}
 		
 		
-		if( atoi(argv[6]) == 0){
+		if( atoi(argv[6]) <= 0){
 			printf("avgA value must be integer and greater than zero\n");
 			return -1;
 		}
@@ -531,7 +531,24 @@ int main(int argc, char *argv[]){
    	printList(rq);
    	
 	
-	}else if(1){}
+	}else if(argc == 5){
+		if(atoi(argv[1]) <= 0){
+			printf("Thread count must be integer and greater than zero\n");
+			return -1;
+		}
+		
+		if(strcmp(argv[2],"FCFS") != 0 && strcmp(argv[2],"SJF") != 0 && strcmp(argv[2],"PRIO") != 0 && strcmp(argv[2],"VRUNTIME")){
+			printf("Undefined Scheduling Algorithm\n");
+			return -1;
+		}
+		
+		if(strcmp(argv[3],"-f") != 0){
+			printf("Undefined Option\n");
+			return -1;
+		}
+		
+		
+	}
 	
 	
 	return 0;
