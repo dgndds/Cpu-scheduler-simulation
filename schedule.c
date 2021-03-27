@@ -19,6 +19,10 @@ typedef struct burst_node{
 }burst_node_t;
 
 struct arg{
+	//mode flag
+	int mode;
+	
+	//args of command line
 	int t_index;
 	int burstCount;
 	int threadCount;
@@ -27,6 +31,12 @@ struct arg{
 	char algo[256];
 	int avgA;
 	int avgB;
+	
+	//args of file
+	int lineCount;
+	int* startPos;
+	int* lines;
+	int* bursts_waits;
 };
 
 
@@ -245,49 +255,53 @@ void* cpuBurst(void* param){
 	struct timeval tv;
 	double currentTime = 0.0;
 	
-	printf("%d\n",((struct arg *)param)->t_index);
+	/*printf("%d\n",((struct arg *)param)->t_index);
 	printf("%d\n",((struct arg *)param)->avgA);
 	printf("%d\n",((struct arg *)param)->avgB);
-	printf("%s\n",((struct arg *)param)->algo);
+	printf("%s\n",((struct arg *)param)->algo);*/
 	
-	pthread_mutex_lock(&a_mutex);
-	
-	double expoRn;
-	
-	while(burstIndex < ((struct arg *)param)->burstCount){
-		expoRn= (double)rand() / (double)RAND_MAX;
-		printf("random value: %f\n",expoRn);
-			
-		double arrivalTime = (((struct arg *)param)->avgA*log(expoRn))*-1;
+	if((struct arg *)param)->mode){
 		
-		while(arrivalTime <= ((struct arg *)param)->minA){
+	}else{
+		pthread_mutex_lock(&a_mutex);
+	
+		double expoRn;
+		
+		while(burstIndex < ((struct arg *)param)->burstCount){
 			expoRn= (double)rand() / (double)RAND_MAX;
-			arrivalTime = (((struct arg *)param)->avgA*log(expoRn))*-1;
+			printf("random value: %f\n",expoRn);
+				
+			double arrivalTime = (((struct arg *)param)->avgA*log(expoRn))*-1;
+			
+			while(arrivalTime <= ((struct arg *)param)->minA){
+				expoRn= (double)rand() / (double)RAND_MAX;
+				arrivalTime = (((struct arg *)param)->avgA*log(expoRn))*-1;
+			}
+			
+			pthread_mutex_unlock(&a_mutex);
+			usleep(arrivalTime*1000);
+			pthread_mutex_lock(&a_mutex);
+			
+			expoRn= (double)rand() / (double)RAND_MAX;
+			double burstLength = (((struct arg *)param)->avgB*log(expoRn))*-1;
+			
+			while(burstLength <= ((struct arg *)param)->minB){
+				expoRn= (double)rand() / (double)RAND_MAX;
+				burstLength = (((struct arg *)param)->avgB*log(expoRn))*-1;
+			}
+			
+			printf("burst length: %f\n", burstLength);
+
+
+			gettimeofday(&tv,NULL);
+			currentTime = (tv.tv_sec)*1000 + (tv.tv_usec)/100;
+			addBurstToEnd(&rq,((struct arg *)param)->t_index,burstIndex,burstLength,currentTime);
+			pthread_cond_signal(&a_cond);
+			burstIndex++;
 		}
 		
 		pthread_mutex_unlock(&a_mutex);
-		usleep(arrivalTime*1000);
-		pthread_mutex_lock(&a_mutex);
-		
-		expoRn= (double)rand() / (double)RAND_MAX;
-		double burstLength = (((struct arg *)param)->avgB*log(expoRn))*-1;
-		
-		while(burstLength <= ((struct arg *)param)->minB){
-			expoRn= (double)rand() / (double)RAND_MAX;
-			burstLength = (((struct arg *)param)->avgB*log(expoRn))*-1;
-		}
-		
-		printf("burst length: %f\n", burstLength);
-
-
-		gettimeofday(&tv,NULL);
-		currentTime = (tv.tv_sec)*1000 + (tv.tv_usec)/100;
-		addBurstToEnd(&rq,((struct arg *)param)->t_index,burstIndex,burstLength,currentTime);
-		pthread_cond_signal(&a_cond);
-		burstIndex++;
 	}
-	
-	pthread_mutex_unlock(&a_mutex);
 	
 	pthread_exit(NULL);
 }
@@ -381,8 +395,8 @@ void* scheduleCpuBurst(void* param){
 			int minIndex = findMinRunTimeIndex(rq,threadRunTimes,((struct arg *)param)->threadCount);
    			burst_node_t* burst = removeBurstByIndex(&rq,minIndex);
 			servedCount++;
-			printf("Serving %d of %d with runtime %f\n",burst->burstIndex, burst->t_index,threadRunTimes[burst->t_index]);
-			threadRunTimes[burst->t_index] += burst->length*(0.7 + 0.3*(burst->t_index));
+			printf("Serving %d of %d with runtime %f\n",burst->burstIndex, burst->t_index,threadRunTimes[burst->t_index - 1]);
+			threadRunTimes[burst->t_index - 1] += burst->length*(0.7 + 0.3*(burst->t_index));
 			usleep(burst->length*1000);
 		}
 		
@@ -475,7 +489,8 @@ int main(int argc, char *argv[]){
 	int thread;
 	
 	for(int i = 0; i < threadCount + 1; i++){
-		args[i].t_index = i;
+		args[i].mode = 0;
+		args[i].t_index = i + 1;
 		args[i].burstCount = burstCount;
 		args[i].threadCount = threadCount;
 		args[i].minA = minA;
@@ -500,34 +515,7 @@ int main(int argc, char *argv[]){
 	
 	pthread_mutex_destroy(&a_mutex);
 	pthread_cond_destroy(&a_cond);
-	//rq->value = rand();
-	//rq->nextNum = NULL;
-	
-	
-	 
-   	/**for(int i=0; i<999; i++){
-   		addValueToEnd(rq,rand());
-   	}
-   	//gettimeofday(&timeval1, NULL);
-   	//struct timeval timeval1;
-	//struct timeval timeval2;
-   	/**gettimeofday(&timeval2, NULL);
-   	
-   	double timeTaken = (timeval2.tv_usec - timeval1.tv_usec) / 1000.0;
-   	
-   	printList(head);
-   	
-   	printf("--- TIME TAKEN: %f ms ---\n",timeTaken);**/
-   //	printList(rq);
-   	
-   	//printf("Removed burst length %f\n",removed->length);
-   	//printList(rq);
-   	
-   	/*for(int i = 0; i < 6 ; i++){
-   		int removedIndex = findMinThreadPriorityIndex(rq);
-   		removeBurstByIndex(&rq,removedIndex);
-   	}*/
-   	
+
    	printList(rq);
    	
 	
@@ -546,6 +534,104 @@ int main(int argc, char *argv[]){
 			printf("Undefined Option\n");
 			return -1;
 		}
+		
+		int threadCount = atoi(argv[1]);
+		int lines[threadCount];
+		int startPos[threadCount];
+		memset(lines, 0, sizeof(int)*threadCount);
+		int totalLines = 0;
+		
+		for(int i = 0; i  < threadCount; i++){
+			int ch = 0;
+			FILE *inputFile;
+			char index[15];
+
+   			sprintf(index, "input%d.txt", i+1);
+	    	inputFile = fopen(index, "r");
+	    	
+	    	while(!feof(inputFile))
+			{
+			  ch = fgetc(inputFile);
+			  if(ch == '\n')
+			  {
+				lines[i]++;
+				totalLines++;
+			  }
+			}
+		}
+		
+		int numberArray[totalLines*2];
+		int lastIndex = 0;
+		
+		for(int i = 0; i < threadCount; i++){
+			FILE *inputFile;
+			char index[15];
+
+   			sprintf(index, "input%d.txt", i+1);
+	    	inputFile = fopen(index, "r");
+	    	
+	    	startPos[i] = lastIndex;
+	    	
+			for (int j = 0 ; j < lines[i]*2; j++)
+			{
+				if( i == 0){
+					fscanf(inputFile, "%d", &numberArray[j]);
+				}else{
+					fscanf(inputFile, "%d", &numberArray[lastIndex]);
+				}
+				
+				lastIndex++;
+			}
+		}
+		
+
+	    /*for (int i = 0; i < totalLines*2; i++)
+	    {
+			printf("Number %d is: %d\n\n",i, numberArray[i]);
+	    }
+	    
+	    for(int i = 0; i < threadCount; i++){
+			printf("start pos of %d is %d\n",i+1, startPos[i]);
+		}*/
+		
+		pthread_t tids[threadCount + 1];
+		struct arg args[threadCount + 1];
+		pthread_mutex_init(&a_mutex,NULL);
+		char algo[256];
+		int thread;
+	
+		for(int i = 0; i < threadCount + 1; i++){
+			args[i].mode = 1;
+			args[i].t_index = i + 1;
+			//args[i].burstCount = burstCount;
+			args[i].threadCount = threadCount;
+			args[i].lineCount = totalLines;
+			//args[i].minA = minA;
+			//args[i].minB = minB;
+			strcpy(args[i].algo,algo);
+			args[i].startPos = startPos;
+			args[i].lines = lines;
+			args[i].bursts_waits = numberArray;
+			//args[i].avgA = avgA;
+			//args[i].avgB = avgB;
+			
+			if(i + 1 == threadCount + 1){
+				thread = pthread_create(&(tids[i]),NULL,scheduleCpuBurst,(void*)&(args[i]));
+			}else{
+				thread = pthread_create(&(tids[i]),NULL,cpuBurst,(void*)&(args[i]));
+			}
+			
+			//usleep(1000000.0);
+		}
+
+		
+		for(int i = 0; i < threadCount + 1; i++){
+			thread = pthread_join(tids[i],NULL);
+		}
+		
+		pthread_mutex_destroy(&a_mutex);
+		pthread_cond_destroy(&a_cond);
+		
 		
 		
 	}
