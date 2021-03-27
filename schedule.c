@@ -260,8 +260,26 @@ void* cpuBurst(void* param){
 	printf("%d\n",((struct arg *)param)->avgB);
 	printf("%s\n",((struct arg *)param)->algo);*/
 	
-	if((struct arg *)param)->mode){
-		
+	if(((struct arg *)param)->mode){
+		pthread_mutex_lock(&a_mutex);
+		for(int i = 0; i < ((struct arg *)param)->lines[((struct arg *)param)->t_index-1]*2; i++){
+			if(i % 2 == 0){
+				printf("wait %d:%d\n",i,((struct arg *)param)->bursts_waits[((struct arg *)param)->startPos[((struct arg *)param)->t_index-1] + i]);
+				pthread_mutex_unlock(&a_mutex);
+				usleep(((struct arg *)param)->bursts_waits[((struct arg *)param)->startPos[((struct arg *)param)->t_index-1] + i]*1000);
+				pthread_mutex_lock(&a_mutex);
+			}else{
+				printf("burst %d:%d\n",i,((struct arg *)param)->bursts_waits[((struct arg *)param)->startPos[((struct arg *)param)->t_index-1] + i]);
+				
+				gettimeofday(&tv,NULL);
+				currentTime = (tv.tv_sec)*1000 + (tv.tv_usec)/100;
+				addBurstToEnd(&rq,((struct arg *)param)->t_index,burstIndex,((struct arg *)param)->bursts_waits[((struct arg *)param)->startPos[((struct arg *)param)->t_index-1] + i],currentTime);
+				pthread_cond_signal(&a_cond);
+				burstIndex++;
+			}
+			
+		}
+		pthread_mutex_unlock(&a_mutex);
 	}else{
 		pthread_mutex_lock(&a_mutex);
 	
@@ -309,6 +327,7 @@ void* cpuBurst(void* param){
 void* scheduleCpuBurst(void* param){
 	printf("SCHEDULING THIS SHIT MA NIGGA\n");
 	printf("MA INDEX NIGGA: %d\n",((struct arg *)param)->t_index);
+	printf("MA ALGO NIGGA: %s\n",((struct arg *)param)->algo);
 	
 	if(strcmp(((struct arg *)param)->algo,"FCFS") == 0){
 		printf("SERVIG FCFS\n");
@@ -316,8 +335,15 @@ void* scheduleCpuBurst(void* param){
 		
 		
 		pthread_mutex_lock(&a_mutex);
+		int totalBurstCount;
+		
+		if(((struct arg *)param)->mode){
+			totalBurstCount = ((struct arg *)param)->lineCount;
+		}else{
+			totalBurstCount = ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount));
+		}
 		int servedCount = 0;
-		while(servedCount < ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount))){
+		while(servedCount < totalBurstCount){
 			while(rq == NULL){
 				printf("Waiting for new cpu burst...\n");
 				pthread_cond_wait(&a_cond, &a_mutex);
@@ -337,8 +363,17 @@ void* scheduleCpuBurst(void* param){
 		printf("SERVIG SJF\n");
 		
 		pthread_mutex_lock(&a_mutex);
+		
+		int totalBurstCount;
+		
+		if(((struct arg *)param)->mode){
+			totalBurstCount = ((struct arg *)param)->lineCount;
+		}else{
+			totalBurstCount = ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount));
+		}
+		
 		int servedCount = 0;
-		while(servedCount < ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount))){
+		while(servedCount < totalBurstCount){
 			while(rq == NULL){
 				printf("Waiting for new cpu burst...\n");
 				pthread_cond_wait(&a_cond, &a_mutex);
@@ -359,8 +394,17 @@ void* scheduleCpuBurst(void* param){
 		printf("SERVIG PRIO\n");
 		
 		pthread_mutex_lock(&a_mutex);
+		
+		int totalBurstCount;
+		
+		if(((struct arg *)param)->mode){
+			totalBurstCount = ((struct arg *)param)->lineCount;
+		}else{
+			totalBurstCount = ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount));
+		}
+		
 		int servedCount = 0;
-		while(servedCount < ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount))){
+		while(servedCount < totalBurstCount){
 			while(rq == NULL){
 				printf("Waiting for new cpu burst...\n");
 				pthread_cond_wait(&a_cond, &a_mutex);
@@ -384,8 +428,17 @@ void* scheduleCpuBurst(void* param){
 		double threadRunTimes[((struct arg *)param)->threadCount];
 		
 		pthread_mutex_lock(&a_mutex);
+		
+		int totalBurstCount;
+		
+		if(((struct arg *)param)->mode){
+			totalBurstCount = ((struct arg *)param)->lineCount;
+		}else{
+			totalBurstCount = ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount));
+		}
+		
 		int servedCount = 0;
-		while(servedCount < ((((struct arg *)param)->threadCount)*(((struct arg *)param)->burstCount))){
+		while(servedCount < totalBurstCount){
 			while(rq == NULL){
 				printf("Waiting for new cpu burst...\n");
 				pthread_cond_wait(&a_cond, &a_mutex);
@@ -598,12 +651,13 @@ int main(int argc, char *argv[]){
 		struct arg args[threadCount + 1];
 		pthread_mutex_init(&a_mutex,NULL);
 		char algo[256];
+		strcpy(algo,argv[2]);
 		int thread;
 	
 		for(int i = 0; i < threadCount + 1; i++){
 			args[i].mode = 1;
 			args[i].t_index = i + 1;
-			//args[i].burstCount = burstCount;
+			args[i].burstCount = lines[i];
 			args[i].threadCount = threadCount;
 			args[i].lineCount = totalLines;
 			//args[i].minA = minA;
